@@ -1,0 +1,23 @@
+{
+  "name": "click-dongbo",
+  "version": "1.0.0",
+  "description": "Đồng bộ truyền dữ liệu & ấn nút giữa 2 máy qua server Ubuntu (WebSocket realtime)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test/sync.test.js"
+  },
+  "keywords": [
+    "websocket",
+    "sync",
+    "realtime",
+    "button",
+    "ubuntu"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

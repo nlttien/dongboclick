@@ -1,0 +1,27 @@
+[Unit]
+Description=Click Dong Bo - Realtime button/data sync server (WebSocket)
+After=network.target
+
+[Service]
+Type=simple
+# >>> SỬA đường dẫn này cho đúng nơi bạn đặt code trên server <<<
+WorkingDirectory=/opt/clickdongbo
+
+# Lệnh chạy (đổi cổng qua biến PORT nếu muốn)
+Environment=PORT=3000
+ExecStart=/usr/bin/node /opt/clickdongbo/server.js
+
+# Tự khởi động lại nếu crash
+Restart=on-failure
+RestartSec=3
+
+# Chạy bằng user thông thường (nếu dùng port >= 1024 thì an toàn)
+User=www-data
+Group=www-data
+
+# Giới hạn quyền
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

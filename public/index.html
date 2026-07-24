@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Click Đồng Bộ — Đồng bộ ấn nút 2 máy</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">⇄</span>
+      <h1>Click Đồng Bộ</h1>
+    </div>
+    <div class="status">
+      <span id="connDot" class="dot off"></span>
+      <span id="connText" class="conn-text">Đang ngắt…</span>
+      <span class="ping" id="pingText"></span>
+    </div>
+  </header>
+
+  <!-- ===== Khung cài đặt kết nối ===== -->
+  <section id="setupCard" class="card setup">
+    <h2>Thiết lập kết nối</h2>
+    <div class="grid2">
+      <label>
+        Tên máy của bạn
+        <input id="nameInput" type="text" placeholder="vd: Máy A" />
+      </label>
+      <label>
+        Kênh (channel) chung 2 máy
+        <input id="channelInput" type="text" placeholder="vd: room1" />
+      </label>
+      <label class="span2">
+        Địa chỉ server Ubuntu
+        <input id="serverInput" type="text" placeholder="ws://192.168.1.10:3000/ws" />
+      </label>
+    </div>
+    <div class="actions">
+      <button id="connectBtn" class="btn primary">Kết nối</button>
+      <button id="disconnectBtn" class="btn ghost" disabled>Ngắt</button>
+    </div>
+    <p class="hint">
+      💡 Mở trang này trên <b>cả 2 máy</b>, nhập <b>cùng 1 kênh</b> rồi ấn Kết nối.
+    </p>
+  </section>
+
+  <!-- ===== Bảng điều khiển đồng bộ ===== -->
+  <section class="card panel" id="controlPanel">
+    <div class="panel-head">
+      <h2>Bảng đồng bộ</h2>
+      <span class="roster" id="roster">Chưa có máy nào online</span>
+    </div>
+
+    <!-- Danh sách nút đồng bộ -->
+    <div id="buttons" class="buttons"></div>
+
+    <!-- Thêm nút mới tùy chỉnh -->
+    <div class="add-row">
+      <input id="newBtnLabel" type="text" placeholder="Tên nút mới…" />
+      <button id="addBtn" class="btn small">+ Thêm nút</button>
+    </div>
+
+    <!-- Nhật ký sự kiện -->
+    <h3 class="log-title">Nhật ký đồng bộ</h3>
+    <ul id="log" class="log"></ul>
+  </section>
+
+  <footer class="foot">
+    <small>Click Đồng Bộ · truyền dữ liệu realtime qua WebSocket</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
