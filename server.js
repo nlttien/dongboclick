@@ -149,6 +149,17 @@ wss.on('connection', (ws, req) => {
         break;
       }
 
+      // Đồng bộ ĐỊNH NGHĨA nút (chia sẻ danh sách nút giữa các máy)
+      case 'buttons': {
+        const list = Array.isArray(msg.buttons) ? msg.buttons : [];
+        broadcast(ws, ws.meta.channel, {
+          type: 'buttons',
+          from: ws.meta.name,
+          buttons: list
+        });
+        break;
+      }
+
       // Đo độ trễ (ping/pong)
       case 'ping': {
         safeSend(ws, { type: 'pong', t: Date.now() });

@@ -27,6 +27,7 @@ const elLog = $('log');
 const elNewBtnLabel = $('newBtnLabel');
 const elNewBtnKey = $('newBtnKey');
 const elAddBtn = $('addBtn');
+const elSyncButtons = $('syncButtonsBtn');
 const elSound = $('soundToggle');
 const elAutoPress = $('autoPressToggle');
 
@@ -133,6 +134,7 @@ function renderButtons() {
       buttons = buttons.filter((x) => x.id !== b.id);
       saveConfig();
       renderButtons();
+      broadcastButtons(); // xoá nút cũng đồng bộ sang máy khác
     });
 
     elButtons.appendChild(btn);
@@ -347,6 +349,17 @@ function handleMessage(msg) {
       break;
     }
 
+    case 'buttons': {
+      // Máy khác chia sẻ danh sách nút -> áp dụng (thay thế) trên máy này
+      if (Array.isArray(msg.buttons) && msg.buttons.length) {
+        buttons = msg.buttons;
+        saveConfig();
+        renderButtons();
+        logEvent('remote', msg.from + ' đồng bộ ' + buttons.length + ' nút');
+      }
+      break;
+    }
+
     case 'pong': {
       const rtt = Date.now() - lastPing;
       elPing.textContent = '· ' + rtt + ' ms';
@@ -359,6 +372,12 @@ function handleMessage(msg) {
 function sendSync(key, value) {
   if (!connected || !ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ type: 'sync', key: key, value: value, ts: Date.now() }));
+}
+
+// ---- Gửi danh sách nút (định nghĩa) sang các máy khác trong kênh ----
+function broadcastButtons() {
+  if (!connected || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'buttons', buttons: buttons }));
 }
 
 // ---- Ping/Pong định kỳ đo độ trễ ----
@@ -386,6 +405,7 @@ function addCustomButton() {
   if (elNewBtnKey) elNewBtnKey.value = '';
   saveConfig();
   renderButtons();
+  broadcastButtons(); // thêm nút -> đồng bộ sang máy khác
 }
 
 // ---- Khởi tạo ----
@@ -395,6 +415,10 @@ elDisconnect.addEventListener('click', disconnect);
 elAddBtn.addEventListener('click', addCustomButton);
 elNewBtnLabel.addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustomButton(); });
 elNewBtnKey.addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustomButton(); });
+if (elSyncButtons) elSyncButtons.addEventListener('click', () => {
+  broadcastButtons();
+  logEvent('me', 'Đã gửi ' + buttons.length + ' nút sang máy khác');
+});
 
 if (elSound) {
   elSound.addEventListener('change', () => {
