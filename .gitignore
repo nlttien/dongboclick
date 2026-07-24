@@ -4,3 +4,8 @@ node_modules/
 __pycache__/
 *.pyc
 .vscode/
+
+# PyInstaller build artifacts
+agent/build/
+agent/dist/
+agent/*.spec

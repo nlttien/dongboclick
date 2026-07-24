@@ -36,7 +36,12 @@ except ImportError:
 # ------------------------------------------------------------------
 #  CẤU HÌNH
 # ------------------------------------------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Khi đóng gói bằng PyInstaller, dùng thư mục chứa file .exe để config.json
+# nằm cạnh exe (người dùng có thể sửa được).
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
 DEFAULT_CONFIG = {

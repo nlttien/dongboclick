@@ -66,6 +66,28 @@ Hoặc tạo shortcut chạy `pythonw agent.py`, đặt vào thư mục Startup 
 - **Phím bổ trợ** (Shift/Ctrl/Alt) không relay riêng để tránh nhân đôi; chữ in hoa/ký tự đặc biệt vẫn đúng vì đi kèm theo ký tự.
 - **Quyền hệ điều hành**: mô phỏng phím toàn cục cần quyền — Windows thường OK; macOS/Linux cần cấp quyền như đã nêu.
 
+## 📦 Đóng gói thành app .exe (KHÔNG cần cài Python trên máy nhận)
+
+Để người khác chỉ cần **tải về và chạy** (không cài Python):
+
+```bash
+# cài công cụ đóng gói (chỉ làm 1 lần)
+pip install pyinstaller
+
+# Windows:
+agent\build.bat
+# Linux/Mac:
+cd agent && bash build.sh
+```
+
+Kết quả trong `agent/dist/`:
+- `clickdongbo-agent.exe` (Windows) — file chạy độc lập.
+- `config.json` — đặt cạnh `.exe`, sửa `server`/`channel`/`name` tại đây.
+
+→ Copy 2 file này sang máy khác (Windows) và chạy `clickdongbo-agent.exe` là xong.
+
+> Lưu ý: file `.exe` được tạo riêng cho từng hệ điều hành. Build trên Windows ra `.exe` cho Windows; build trên Linux ra binary cho Linux.
+
 ## Khắc phục
 | Hiện tượng | Xử lý |
 |---|---|
