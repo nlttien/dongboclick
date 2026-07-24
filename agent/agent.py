@@ -94,6 +94,7 @@ kbd = Controller()
 ws_app = None
 lock = threading.Lock()
 last_inject_time = 0.0   # thời điểm gần nhất agent tự bấm phím (chống echo)
+connected = False        # đang kết nối tới server hay không
 
 # Các phím bổ trợ — KHÔNG relay riêng để tránh nhân đôi shift/ctrl khi gõ chữ
 MODIFIERS = {
@@ -202,9 +203,9 @@ def mark_inject():
 #  GỬI & BẨM PHÍM
 # ------------------------------------------------------------------
 def send_event(obj):
-    global ws_app
-    if ws_app is None:
-        return
+    global ws_app, connected
+    if ws_app is None or not connected:
+        return  # chưa kết nối server -> bỏ qua im lặng (không in lỗi spam)
     try:
         payload = {
             "type": "sync",
@@ -213,8 +214,8 @@ def send_event(obj):
             "ts": int(time.time() * 1000)
         }
         ws_app.send(json.dumps(payload))
-    except Exception as e:
-        print("[send err]", e)
+    except Exception:
+        pass  # im lặng; vòng lặp kết nối lại sẽ xử lý
 
 
 def inject_key(obj):
@@ -242,11 +243,12 @@ def on_press(key):
     if not should_relay(obj):
         return
     send_event(obj)
-    # In ra cho dễ theo dõi (có thể tắt)
-    try:
-        print("  [gửi] phím:", key_label(obj))
-    except Exception:
-        pass
+    # Chỉ in khi đã kết nối (tránh spam khi mất mạng)
+    if connected:
+        try:
+            print("  [gửi] phím:", key_label(obj))
+        except Exception:
+            pass
 
 
 def start_listener():
@@ -260,6 +262,8 @@ def start_listener():
 #  WEBSOCKET
 # ------------------------------------------------------------------
 def on_open(ws):
+    global connected
+    connected = True
     print("[+] Đã kết nối server:", cfg["server"])
     try:
         ws.send(json.dumps({
@@ -301,11 +305,16 @@ def on_message(ws, message):
 
 
 def on_error(ws, error):
-    print("[ws err]", error)
+    # Im lặng: on_close đã thông báo. Tránh spam "WinError 10061" lặp lại.
+    pass
 
 
 def on_close(ws, *args):
-    print("[-] Mất kết nối. Đang thử lại...")
+    global connected
+    connected = False
+    print("[-] Chưa kết nối được server (" + cfg["server"] + ").")
+    print("    -> Hãy chắc chắn server đang chạy:  npm start")
+    print("    -> Và 'server' trong config.json trỏ đúng IP/cổng. Đang thử lại...")
 
 
 def main():
