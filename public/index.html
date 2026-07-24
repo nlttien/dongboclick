@@ -52,12 +52,25 @@
       <span class="roster" id="roster">Chưa có máy nào online</span>
     </div>
 
+    <!-- Tuỳ chọn đồng bộ -->
+    <div class="options">
+      <label class="check">
+        <input type="checkbox" id="autoPressToggle" checked />
+        Máy nhận tự <b>ấn nút</b> (đồng bộ thật)
+      </label>
+      <label class="check">
+        <input type="checkbox" id="soundToggle" checked />
+        Âm thanh khi ấn
+      </label>
+    </div>
+
     <!-- Danh sách nút đồng bộ -->
     <div id="buttons" class="buttons"></div>
 
     <!-- Thêm nút mới tùy chỉnh -->
     <div class="add-row">
       <input id="newBtnLabel" type="text" placeholder="Tên nút mới…" />
+      <input id="newBtnKey" type="text" placeholder="Phím mô phỏng (tuỳ chọn): Enter, F5, a…" />
       <button id="addBtn" class="btn small">+ Thêm nút</button>
     </div>
 

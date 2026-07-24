@@ -117,6 +117,19 @@ input[type="text"]:focus { border-color: var(--primary); }
   background: var(--card-2); padding: 6px 12px; border-radius: 999px;
 }
 
+/* Tuỳ chọn đồng bộ */
+.options {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  margin-bottom: 16px; padding: 12px;
+  background: var(--card-2); border-radius: 10px;
+}
+.check {
+  display: flex; align-items: center; gap: 8px;
+  flex-direction: row; color: var(--text); font-size: .9rem; cursor: pointer;
+}
+.check input { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+.check b { color: var(--primary); }
+
 .buttons {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -158,11 +171,18 @@ input[type="text"]:focus { border-color: var(--primary); }
   position: absolute; bottom: 6px; right: 8px;
   font-size: .7rem; font-weight: 500; color: rgba(255,255,255,.75);
 }
+.sync-btn .key {
+  position: absolute; top: 6px; left: 8px;
+  font-size: .68rem; font-weight: 600;
+  background: rgba(0,0,0,.35); color: #fff;
+  padding: 2px 7px; border-radius: 999px;
+}
 .sync-btn .del {
   position: absolute; top: 6px; right: 6px;
   width: 22px; height: 22px; border-radius: 6px;
   background: rgba(0,0,0,.3); color: #fff; border: none; cursor: pointer;
   font-size: .8rem; line-height: 1; opacity: 0; transition: opacity .15s;
+  display: grid; place-items: center;
 }
 .sync-btn:hover .del { opacity: 1; }
 

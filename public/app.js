@@ -3,6 +3,12 @@
 /* ============================================================
  *  CLICK-DONGBO — Client logic
  *  Kết nối WebSocket tới server Ubuntu, đồng bộ ấn nút realtime.
+ *
+ *  Hành vi chính:
+ *   - Người dùng ấn nút trên MÁY NÀY  -> gửi sự kiện tới server
+ *   - Khi MÁY KHÁC ấn -> máy này TỰ ẤN nút tương ứng (ấn thật:
+ *     hiệu ứng nhấn + (tuỳ chọn) âm thanh + (tuỳ chọn) mô phỏng phím)
+ *     NHƯNG KHÔNG gửi lại để tránh lặp vòng vô hạn.
  * ============================================================ */
 
 // ---- Tham chiếu DOM ----
@@ -19,24 +25,30 @@ const elRoster = $('roster');
 const elButtons = $('buttons');
 const elLog = $('log');
 const elNewBtnLabel = $('newBtnLabel');
+const elNewBtnKey = $('newBtnKey');
 const elAddBtn = $('addBtn');
+const elSound = $('soundToggle');
+const elAutoPress = $('autoPressToggle');
 
 // ---- Trạng thái ----
 let ws = null;
 let connected = false;
 let myName = '';
 let myChannel = '';
-let buttons = []; // mảng cấu hình nút: { id, label }
+let buttons = [];            // [{ id, label, key }]
 let remoteTimers = new Map(); // id -> timeout (xoá class remote)
 let pingInterval = null;
 let lastPing = 0;
+let soundOn = true;
+let autoPressRemote = true;  // máy nhận có tự "ấn" nút hay không
+let audioCtx = null;
 
 // ---- Nút mặc định ban đầu ----
 const DEFAULT_BUTTONS = [
-  { id: 'start', label: 'Bắt đầu' },
-  { id: 'stop', label: 'Dừng' },
-  { id: 'next', label: 'Tiếp theo' },
-  { id: 'alert', label: 'Cảnh báo' }
+  { id: 'start', label: 'Bắt đầu',  key: '' },
+  { id: 'stop',  label: 'Dừng',      key: '' },
+  { id: 'next',  label: 'Tiếp theo', key: '' },
+  { id: 'alert', label: 'Cảnh báo',  key: '' }
 ];
 
 // ---- Lưu/đọc cấu hình từ localStorage ----
@@ -47,22 +59,28 @@ function loadConfig() {
     elChannel.value = saved.channel || 'room1';
     elServer.value = saved.server || guessServer();
     buttons = (saved.buttons && saved.buttons.length) ? saved.buttons : DEFAULT_BUTTONS.slice();
+    soundOn = (typeof saved.soundOn === 'boolean') ? saved.soundOn : true;
+    autoPressRemote = (typeof saved.autoPressRemote === 'boolean') ? saved.autoPressRemote : true;
   } catch {
     buttons = DEFAULT_BUTTONS.slice();
     elName.value = guessName();
     elChannel.value = 'room1';
     elServer.value = guessServer();
   }
+  if (elSound) elSound.checked = soundOn;
+  if (elAutoPress) elAutoPress.checked = autoPressRemote;
   renderButtons();
 }
+
 function saveConfig() {
-  const cfg = {
+  localStorage.setItem('clickdongbo', JSON.stringify({
     name: elName.value.trim(),
     channel: elChannel.value.trim(),
     server: elServer.value.trim(),
-    buttons
-  };
-  localStorage.setItem('clickdongbo', JSON.stringify(cfg));
+    buttons: buttons,
+    soundOn: soundOn,
+    autoPressRemote: autoPressRemote
+  }));
 }
 
 function guessName() {
@@ -72,7 +90,7 @@ function guessServer() {
   // Mặc định dùng cùng host đang mở trang (nếu chạy client ngay trên server)
   const loc = window.location;
   if (loc.protocol.startsWith('http')) {
-    return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.hostname}:3000/ws`;
+    return (loc.protocol === 'https:' ? 'wss' : 'ws') + '://' + loc.hostname + ':3000/ws';
   }
   return 'ws://localhost:3000/ws';
 }
@@ -99,16 +117,18 @@ function renderButtons() {
     const btn = document.createElement('button');
     btn.className = 'sync-btn';
     btn.dataset.id = b.id;
-    btn.innerHTML = `<span class="label">${escapeHtml(b.label)}</span>
-                     <span class="by"></span>
-                     <button class="del" title="Xoá nút">×</button>`;
+    const keyBadge = b.key ? '<span class="key">⌨ ' + escapeHtml(b.key) + '</span>' : '';
+    btn.innerHTML =
+      '<span class="label">' + escapeHtml(b.label) + '</span>' + keyBadge +
+      '<span class="by"></span>' +
+      '<span class="del" title="Xoá nút" role="button">×</span>';
 
-    // Sự kiện ấn (gửi đi + phản hồi cục bộ)
-    btn.addEventListener('pointerdown', () => handlePress(b));
-    btn.addEventListener('click', () => handlePress(b));
+    // Người dùng ấn nút trên MÁY NÀY -> gửi đi + phản hồi cục bộ
+    btn.addEventListener('click', () => onLocalPress(b));
 
     // Nút xoá
-    btn.querySelector('.del').addEventListener('click', (e) => {
+    const del = btn.querySelector('.del');
+    if (del) del.addEventListener('click', (e) => {
       e.stopPropagation();
       buttons = buttons.filter((x) => x.id !== b.id);
       saveConfig();
@@ -127,42 +147,109 @@ function escapeHtml(s) {
   });
 }
 
-// ---- Xử lý ấn nút ----
-function handlePress(b) {
-  flashLocal(b.id);
-  logEvent('me', `Bạn ấn "${b.label}"`);
-  sendSync(b.id, 'press');
-}
-
-function flashLocal(id) {
-  const el = elButtons.querySelector(`.sync-btn[data-id="${cssEscape(id)}"]`);
-  if (!el) return;
-  el.classList.add('pressed');
-  setTimeout(() => el.classList.remove('pressed'), 140);
-}
-
-// ---- Phản hồi khi nhận từ máy khác ----
-function flashRemote(id, fromName) {
-  const el = elButtons.querySelector(`.sync-btn[data-id="${cssEscape(id)}"]`);
-  if (!el) return;
-  el.classList.add('remote');
-  const by = el.querySelector('.by');
-  if (by) by.textContent = fromName ? '← ' + fromName : '';
-
-  // xoá class remote sau 600ms
-  if (remoteTimers.has(id)) clearTimeout(remoteTimers.get(id));
-  remoteTimers.set(id, setTimeout(() => {
-    el.classList.remove('remote');
-    if (by) by.textContent = '';
-  }, 600));
-}
-
 // escape đơn giản cho selector (id an toàn kiểu ASCII)
 function cssEscape(s) {
   return String(s).replace(/["\\]/g, '\\$&');
 }
 
-// ---- Nhật ký ----
+// ===================================================================
+//  XỬ LÝ ẤN NÚT
+// ===================================================================
+
+// (A) Người dùng ấn nút THẬT trên máy này -> phát hiệu ứng + gửi đi
+function onLocalPress(b) {
+  performPress(b, { from: 'me' });
+  logEvent('me', 'Bạn ấn "' + b.label + '"' + (b.key ? ' (⌨ ' + b.key + ')' : ''));
+  sendSync(b.id, 'press');
+}
+
+// (B) "Ấn" một nút (dùng chung cho ấn tại chỗ và máy khác nhận được).
+//     QUAN TRỌNG: hàm này KHÔNG gửi sync -> tránh lặp vòng vô hạn.
+function performPress(b, opts) {
+  opts = opts || {};
+  const from = opts.from || 'me';
+  const remote = (from !== 'me');
+  const el = elButtons.querySelector('.sync-btn[data-id="' + cssEscape(b.id) + '"]');
+
+  if (el) {
+    // Động cơ ấn thật: nhấn xuống rồi nẩy lên
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 140);
+
+    if (remote) {
+      // Nhấn đến từ máy khác -> thêm viền nổi bật
+      el.classList.add('remote');
+      const by = el.querySelector('.by');
+      if (by) by.textContent = from ? ('← ' + from) : '';
+      if (remoteTimers.has(b.id)) clearTimeout(remoteTimers.get(b.id));
+      remoteTimers.set(b.id, setTimeout(() => {
+        el.classList.remove('remote');
+        const by2 = el.querySelector('.by');
+        if (by2) by2.textContent = '';
+      }, 600));
+    }
+  }
+
+  // Âm thanh (tuỳ chọn)
+  if (soundOn) beep(remote);
+
+  // Mô phỏng phím nếu nút có gắn phím (chỉ ảnh hưởng trong trang web)
+  if (b.key) dispatchKey(b.key);
+}
+
+// (C) Khi tắt chế độ "tự ấn": chỉ phát sáng, không thực sự ấn
+function flashOnly(id, from) {
+  const el = elButtons.querySelector('.sync-btn[data-id="' + cssEscape(id) + '"]');
+  if (!el) return;
+  el.classList.add('remote');
+  const by = el.querySelector('.by');
+  if (by) by.textContent = from ? ('← ' + from) : '';
+  if (remoteTimers.has(id)) clearTimeout(remoteTimers.get(id));
+  remoteTimers.set(id, setTimeout(() => {
+    el.classList.remove('remote');
+    const by2 = el.querySelector('.by');
+    if (by2) by2.textContent = '';
+  }, 600));
+}
+
+// ---- Âm thanh "bíp" khi ấn ----
+function beep(remote) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.type = 'sine';
+    o.frequency.value = remote ? 880 : 660; // máy khác cao hơn một chút
+    const t = audioCtx.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.15, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    o.start(t);
+    o.stop(t + 0.13);
+  } catch (e) {
+    // trình duyệt không hỗ trợ / chưa cho phép âm thanh
+  }
+}
+
+// ---- Mô phỏng phím (chỉ trong trang web) ----
+function dispatchKey(key) {
+  // Ghi chú: trình duyệt KHÔNG cho phép điều khiển app ngoài OS.
+  // Phím này chỉ tác động tới chính trang web (vd: input đang focus,
+  // hoặc các thành phần lắng nghe keydown trong trang).
+  try {
+    const opts = { key: key, code: key, bubbles: true, cancelable: true };
+    document.dispatchEvent(new KeyboardEvent('keydown', opts));
+    document.dispatchEvent(new KeyboardEvent('keyup', opts));
+  } catch (e) {
+    // bỏ qua
+  }
+}
+
+// ===================================================================
+//  NHẬT KÝ
+// ===================================================================
 function logEvent(kind, text) {
   const li = document.createElement('li');
   li.className = kind; // 'me' | 'remote'
@@ -170,13 +257,14 @@ function logEvent(kind, text) {
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
   const ss = String(now.getSeconds()).padStart(2, '0');
-  li.innerHTML = `<span>${escapeHtml(text)}</span><span class="time">${hh}:${mm}:${ss}</span>`;
+  li.innerHTML = '<span>' + escapeHtml(text) + '</span><span class="time">' + hh + ':' + mm + ':' + ss + '</span>';
   elLog.prepend(li);
-  // giới hạn 60 dòng
   while (elLog.children.length > 60) elLog.removeChild(elLog.lastChild);
 }
 
-// ---- WebSocket: kết nối ----
+// ===================================================================
+//  WEBSOCKET
+// ===================================================================
 function connect() {
   const name = elName.value.trim() || 'Máy không tên';
   let url = elServer.value.trim();
@@ -197,10 +285,9 @@ function connect() {
 
   ws.addEventListener('open', () => {
     setConnState('on');
-    // Gửi gói tham gia kênh
     ws.send(JSON.stringify({ type: 'join', name: myName, channel: myChannel }));
     startPing();
-    logEvent('me', `Đã kết nối kênh "${myChannel}"`);
+    logEvent('me', 'Đã kết nối kênh "' + myChannel + '"');
   });
 
   ws.addEventListener('message', (ev) => {
@@ -237,22 +324,32 @@ function handleMessage(msg) {
 
     case 'roster': {
       const list = (msg.clients || []).join(', ') || '(chỉ mình bạn)';
-      elRoster.textContent = `Online (${msg.count}): ${list}`;
+      elRoster.textContent = 'Online (' + msg.count + '): ' + list;
       break;
     }
 
     case 'sync': {
-      // Nhận sự kiện đồng bộ từ máy khác
+      // Máy khác vừa ấn nút -> máy này cũng phải "ấn" nút tương ứng
       const b = buttons.find((x) => x.id === msg.key);
+      const btnObj = b || { id: msg.key, label: msg.key, key: '' };
       const label = b ? b.label : msg.key;
-      flashRemote(msg.key, msg.from);
-      logEvent('remote', `${msg.from} ấn "${label}"${msg.value ? ' (' + msg.value + ')' : ''}`);
+
+      if (autoPressRemote) {
+        // THỰC SỰ ấn nút trên máy này (nhưng không gửi lại -> không lặp vòng)
+        performPress(btnObj, { from: msg.from });
+        logEvent('remote', msg.from + ' ấn "' + label + '"' +
+          (b && b.key ? ' (⌨ ' + b.key + ')' : ''));
+      } else {
+        // Chế độ chỉ xem: không tự ấn
+        flashOnly(msg.key, msg.from);
+        logEvent('remote', msg.from + ' ấn "' + label + '" (chỉ xem)');
+      }
       break;
     }
 
     case 'pong': {
       const rtt = Date.now() - lastPing;
-      elPing.textContent = `· ${rtt} ms`;
+      elPing.textContent = '· ' + rtt + ' ms';
       break;
     }
   }
@@ -261,7 +358,7 @@ function handleMessage(msg) {
 // ---- Gửi sự kiện đồng bộ ----
 function sendSync(key, value) {
   if (!connected || !ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: 'sync', key, value, ts: Date.now() }));
+  ws.send(JSON.stringify({ type: 'sync', key: key, value: value, ts: Date.now() }));
 }
 
 // ---- Ping/Pong định kỳ đo độ trễ ----
@@ -278,13 +375,15 @@ function stopPing() {
   if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
 }
 
-// ---- Thêm nút mới ----
+// ---- Thêm nút mới (có thể gắn phím mô phỏng) ----
 function addCustomButton() {
   const label = elNewBtnLabel.value.trim();
   if (!label) return;
+  const key = elNewBtnKey ? elNewBtnKey.value.trim() : '';
   const id = 'b' + Date.now().toString(36);
-  buttons.push({ id, label });
+  buttons.push({ id: id, label: label, key: key });
   elNewBtnLabel.value = '';
+  if (elNewBtnKey) elNewBtnKey.value = '';
   saveConfig();
   renderButtons();
 }
@@ -294,9 +393,22 @@ loadConfig();
 elConnect.addEventListener('click', connect);
 elDisconnect.addEventListener('click', disconnect);
 elAddBtn.addEventListener('click', addCustomButton);
-elNewBtnLabel.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') addCustomButton();
-});
+elNewBtnLabel.addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustomButton(); });
+elNewBtnKey.addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustomButton(); });
+
+if (elSound) {
+  elSound.addEventListener('change', () => {
+    soundOn = elSound.checked;
+    saveConfig();
+    if (soundOn) beep(false); // thử tiếng bíp
+  });
+}
+if (elAutoPress) {
+  elAutoPress.addEventListener('change', () => {
+    autoPressRemote = elAutoPress.checked;
+    saveConfig();
+  });
+}
 
 // Tự ngắt khi đóng trang
 window.addEventListener('beforeunload', () => {
