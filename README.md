@@ -20,6 +20,29 @@ Công cụ **đồng bộ truyền dữ liệu & ấn nút giữa 2 máy** theo 
 
 ---
 
+## ⌨️ Chế độ 2 (KHÔNG cần web): Đồng bộ GÕ PHÍM toàn cục
+
+Nếu bạn muốn **ấn phím `R` trên máy 1 → máy 2 tự bấm `R` ở cấp hệ điều hành** (mọi ứng dụng, không mở trình duyệt) → dùng **agent** Python trong thư mục [`agent/`](agent/agent.py).
+
+- [`agent/agent.py`](agent/agent.py): nghe phím toàn cục (`pynput`) + mô phỏng phím trên máy nhận + chống lặp vòng.
+- [`agent/config.json`](agent/config.json): cấu hình server/kênh/tên/bộ lọc phím.
+- [`agent/README.md`](agent/README.md): hướng dẫn đầy đủ.
+
+Nhanh:
+```bash
+cd agent
+pip install -r requirements.txt
+# máy 1:
+python agent.py May-A room1 ws://<IP_UBUNTU>:3000/ws
+# máy 2:
+python agent.py May-B room1 ws://<IP_UBUNTU>:3000/ws
+```
+→ bấm phím trên máy 1, máy 2 bấm theo (toàn cục).
+
+> Hai chế độ dùng chung một server `server.js` và có thể chạy song song.
+
+---
+
 ## 🚀 Cài đặt trên server Ubuntu
 
 ### 1. Cài Node.js (nếu chưa có)
@@ -142,5 +165,11 @@ clickdongbo/
 ├── deploy/
 │   ├── clickdongbo.service   # systemd unit
 │   └── nginx.conf             # ví dụ reverse proxy (tuỳ chọn)
+├── agent/
+│   ├── agent.py              # agent đồng bộ gõ phím toàn cục (không cần web)
+│   ├── config.json           # cấu hình agent
+│   ├── requirements.txt      # pynput, websocket-client
+│   ├── test_agent_ws.py      # test protocol agent
+│   └── README.md
 └── README.md
 ```

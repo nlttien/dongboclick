@@ -1,0 +1,10 @@
+{
+  "server": "ws://localhost:3000/ws",
+  "channel": "room1",
+  "name": "May-A",
+  "relay_keys": true,
+  "auto_inject": true,
+  "echo_suppress_ms": 90,
+  "only_keys": [],
+  "ignore_keys": []
+}
