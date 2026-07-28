@@ -45,7 +45,7 @@ else:
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
 DEFAULT_CONFIG = {
-    "server": "ws://localhost:3000/ws",
+    "server": "ws://192.168.2.113:3000/ws",
     "channel": "room1",
     "name": "May-A",
     "relay_keys": True,        # có nghe & gửi phím đi không

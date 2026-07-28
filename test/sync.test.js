@@ -1,7 +1,7 @@
 'use strict';
 // Kiểm thử end-to-end: giả lập 2 máy kết nối, đồng bộ ấn nút + chia sẻ danh sách nút.
 const WebSocket = require('ws');
-const URL = 'ws://localhost:3000/ws';
+const URL = 'ws://192.168.2.113:3000/ws';
 
 function makeClient(name, channel) {
   const ws = new WebSocket(URL);

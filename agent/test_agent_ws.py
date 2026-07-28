@@ -3,7 +3,7 @@
 import json, time, threading
 import websocket
 
-URL = "ws://localhost:3000/ws"
+URL = "ws://192.168.2.113:3000/ws"
 results = {}
 
 def make(name, channel, on_msg):

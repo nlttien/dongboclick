@@ -93,7 +93,7 @@ function guessServer() {
   if (loc.protocol.startsWith('http')) {
     return (loc.protocol === 'https:' ? 'wss' : 'ws') + '://' + loc.hostname + ':3000/ws';
   }
-  return 'ws://localhost:3000/ws';
+  return 'ws://192.168.2.113:3000/ws';
 }
 
 // ---- Trạng thái kết nối (UI) ----

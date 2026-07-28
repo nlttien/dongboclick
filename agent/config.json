@@ -1,5 +1,5 @@
 {
-  "server": "ws://localhost:3000/ws",
+  "server": "ws://192.168.2.113:3000/ws",
   "channel": "room1",
   "name": "May-A",
   "relay_keys": true,
