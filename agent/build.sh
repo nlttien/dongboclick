@@ -5,7 +5,7 @@
 # ==================================================================
 set -e
 echo "Dang dong goi agent ..."
-pyinstaller --noconfirm --onefile --name clickdongbo-agent agent.py
+python3 -m PyInstaller --noconfirm clickdongbo-agent.spec || pyinstaller --noconfirm clickdongbo-agent.spec
 cp -f config.json dist/config.json
 echo
 echo "XONG! File dung duoc tai:"

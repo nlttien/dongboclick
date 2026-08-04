@@ -1,0 +1,42 @@
+name: Build Windows Executable (.exe)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r agent/requirements.txt
+
+      - name: Build Windows .exe
+        run: |
+          cd agent
+          python -m PyInstaller --noconfirm clickdongbo-agent.spec
+          copy /Y config.json dist\config.json
+
+      - name: Create ZIP archive
+        run: |
+          Compress-Archive -Path agent\dist\* -DestinationPath clickdongbo-agent-windows.zip
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clickdongbo-agent-exe
+          path: clickdongbo-agent-windows.zip
