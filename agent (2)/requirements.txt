@@ -1,4 +1,0 @@
-pynput>=1.7.6
-websocket-client>=1.6.0
-pyinstaller>=6.0.0
-

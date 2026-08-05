@@ -8,7 +8,7 @@ Type=simple
 WorkingDirectory=/opt/clickdongbo
 
 # Lệnh chạy (đổi cổng qua biến PORT nếu muốn)
-Environment=PORT=3000
+Environment=PORT=7000
 ExecStart=/usr/bin/node /opt/clickdongbo/server.js
 
 # Tự khởi động lại nếu crash

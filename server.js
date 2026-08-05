@@ -19,7 +19,7 @@ const path = require('path');
 const { WebSocketServer } = require('ws');
 
 // ---- Cấu hình -----------------------------------------------------------
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 7000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // Bảng MIME cho static server

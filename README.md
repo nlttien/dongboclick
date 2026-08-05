@@ -61,20 +61,20 @@ npm install
 
 ### 3. Chạy thử
 ```bash
-npm start
-# Mặc định chạy ở cổng 3000.
-# Đổi cổng: PORT=8080 npm start
+   npm start
+# Mặc định chạy ở cổng 7000.
+# Đổi cổng: PORT=7000 npm start
 ```
 
 Màn hình sẽ hiện:
 ```
-  Giao diện (client):  http://<IP_UBUNTU>:3000/
-  WebSocket (ws):      ws://<IP_UBUNTU>:3000/ws
+   Giao diện (client):  http://<IP_UBUNTU>:7000/
+   WebSocket (ws):      ws://<IP_UBUNTU>:7000/ws
 ```
 
 ### 4. Mở cổng tường lửa (UFW)
 ```bash
-sudo ufw allow 3000/tcp
+sudo ufw allow 7000/tcp
 ```
 > Nếu dùng VPS cloud (AWS/GCP/DigitalOcean…), nhớ mở cổng **3000** ở Security Group/Firewall của nhà cung cấp.
 
@@ -104,7 +104,7 @@ sudo journalctl -u clickdongbo -f
 
 1. Mở trình duyệt trên **cả 2 máy**, truy cập:
    ```
-   http://<IP_UBUNTU>:3000/
+   http://<IP_UBUNTU>:7000/
    ```
 2. Trên mỗi máy điền:
    - **Tên máy của bạn** (vd: `Máy A`, `Máy B`)
@@ -136,7 +136,7 @@ sudo journalctl -u clickdongbo -f
 ## 🔧 Tuỳ biến cổng
 
 ```bash
-PORT=8080 npm start
+PORT=7000 npm start
 ```
 Nhớ mở cổng tương ứng ở tường lửa.
 
