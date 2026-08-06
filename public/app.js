@@ -88,12 +88,13 @@ function guessName() {
   return 'Máy-' + Math.floor(1000 + Math.random() * 9000);
 }
 function guessServer() {
-  // Mặc định dùng cùng host đang mở trang (nếu chạy client ngay trên server)
   const loc = window.location;
   if (loc.protocol.startsWith('http')) {
-    return (loc.protocol === 'https:' ? 'wss' : 'ws') + '://' + loc.hostname + ':3000/ws';
+    const proto = loc.protocol === 'https:' ? 'wss' : 'ws';
+    const port = loc.port ? ':' + loc.port : ':7000';
+    return `${proto}://${loc.hostname}${port}/ws`;
   }
-  return 'ws://192.168.2.113:3000/ws';
+  return 'ws://192.168.2.113:7000/ws';
 }
 
 // ---- Trạng thái kết nối (UI) ----
