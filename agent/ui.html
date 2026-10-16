@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Click Đồng Bộ Agent</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1b1f24; --muted: #5d6673; --line: #e2e5ea;
+    --on: #1f9d55; --on-bg: #e7f6ee; --off: #c27c0e; --off-bg: #fdf3e1;
+    --bad: #c93c37; --bad-bg: #fdecec; --accent: #2f6fde; --key: #eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --card: #1b2027; --text: #e7eaee; --muted: #9aa4b1; --line: #2a313b;
+      --on: #3ccf7f; --on-bg: #163024; --off: #f0b44c; --off-bg: #33280f;
+      --bad: #ff7b72; --bad-bg: #3a1d1c; --accent: #6ea0ff; --key: #262d36;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  header h1 { font-size: 20px; margin: 0; flex: 1; min-width: 200px; }
+  header h1 small { color: var(--muted); font-weight: 500; font-size: 14px; margin-left: 6px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+          background: var(--card); border: 1px solid var(--line); font-size: 13px; max-width: 100%; }
+  .pill span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); flex: none; }
+  .dot.on { background: var(--on); box-shadow: 0 0 0 3px var(--on-bg); }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+             margin: 0 0 12px; font-weight: 600; }
+  .span-12 { grid-column: span 12; } .span-6 { grid-column: span 6; } .span-4 { grid-column: span 4; }
+  .span-8 { grid-column: span 8; }
+  @media (max-width: 760px) { .span-6, .span-4, .span-8 { grid-column: span 12; } }
+
+  /* Trạng thái đồng bộ */
+  .sync { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .sync.on { background: var(--on-bg); border-color: transparent; }
+  .sync.off { background: var(--off-bg); border-color: transparent; }
+  .sync .big { font-size: 26px; font-weight: 800; letter-spacing: .02em; }
+  .sync.on .big { color: var(--on); } .sync.off .big { color: var(--off); }
+  .sync .info { flex: 1; min-width: 220px; }
+  .sync .hint { color: var(--muted); font-size: 14px; }
+  button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line);
+           background: var(--card); color: var(--text); padding: 8px 14px; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
+  button.big-btn { font-size: 17px; padding: 12px 22px; font-weight: 700; }
+  .sync.on button.big-btn { background: var(--off); color: #fff; border-color: transparent; }
+  .sync.off button.big-btn { background: var(--on); color: #fff; border-color: transparent; }
+  kbd { display: inline-block; padding: 1px 7px; border-radius: 6px; background: var(--key);
+        border: 1px solid var(--line); border-bottom-width: 2px; font: 600 13px ui-monospace, monospace; }
+
+  /* Phím gần nhất */
+  .last { display: flex; align-items: center; gap: 14px; min-height: 64px; }
+  .keycap { min-width: 64px; height: 64px; padding: 0 14px; border-radius: 12px; background: var(--key);
+            border: 1px solid var(--line); border-bottom-width: 4px; display: grid; place-items: center;
+            font: 700 24px ui-monospace, monospace; transition: transform .08s; }
+  .keycap.flash { transform: translateY(2px); border-color: var(--accent); }
+  .last .meta { color: var(--muted); font-size: 13px; }
+  .count { font-size: 22px; font-weight: 700; color: var(--text); }
+
+  /* Công tắc */
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+  .switch + .switch { border-top: 1px solid var(--line); }
+  .switch small { display: block; color: var(--muted); font-size: 12px; }
+  .tog { position: relative; width: 46px; height: 26px; flex: none; }
+  .tog input { opacity: 0; width: 0; height: 0; }
+  .tog span { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: .15s; cursor: pointer; }
+  .tog span::after { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px;
+                     border-radius: 50%; background: #fff; transition: .15s; }
+  .tog input:checked + span { background: var(--on); }
+  .tog input:checked + span::after { transform: translateX(20px); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 5px 11px; border-radius: 999px; background: var(--key); border: 1px solid var(--line); font-size: 13px; }
+  .chip.me { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .muted { color: var(--muted); }
+  ul.plain { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  ul.plain li { padding: 3px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .warn { background: var(--bad-bg); color: var(--bad); border-radius: 12px; padding: 12px 14px; }
+  .warn code { background: transparent; font-weight: 700; }
+  .warn ul { margin: 6px 0 0; padding-left: 18px; }
+
+  /* Nhật ký */
+  .logbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .logbar .sp { flex: 1; }
+  #log { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto;
+         font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #log li { display: flex; gap: 10px; padding: 4px 2px; border-bottom: 1px dashed var(--line); }
+  #log time { color: var(--muted); flex: none; }
+  #log .k { flex: none; width: 18px; text-align: center; }
+  #log .send .k { color: var(--accent); } #log .recv .k { color: var(--on); }
+  #log .warn-l { color: var(--bad); } #log .state { color: var(--off); font-weight: 600; }
+
+  form.cfg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  form.cfg label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+  form.cfg label.wide { grid-column: span 2; }
+  @media (max-width: 560px) { form.cfg { grid-template-columns: 1fr; } form.cfg label.wide { grid-column: span 1; } }
+  input[type=text] { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+                     background: var(--bg); color: var(--text); width: 100%; }
+  .row-end { display: flex; justify-content: flex-end; align-items: center; gap: 10px; grid-column: 1 / -1; }
+  #cfgMsg { font-size: 13px; }
+  .offline { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--bad);
+             color: #fff; padding: 10px 16px; border-radius: 10px; display: none; max-width: calc(100% - 32px); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Click Đồng Bộ <small id="hName">—</small></h1>
+    <div class="pill"><span class="dot" id="connDot"></span><span id="connText">Đang tải…</span></div>
+    <button id="quitBtn" title="Tắt hẳn agent trên máy này">Thoát agent</button>
+  </header>
+
+  <div class="grid">
+    <section class="card span-12 sync" id="syncCard">
+      <div class="info">
+        <div class="big" id="syncBig">…</div>
+        <div class="hint" id="syncHint"></div>
+      </div>
+      <button class="big-btn" id="syncBtn">…</button>
+    </section>
+
+    <section class="card span-12 warn" id="warnBox" hidden></section>
+
+    <section class="card span-6">
+      <h2>Phím gửi gần nhất</h2>
+      <div class="last">
+        <div class="keycap" id="lastSendKey">–</div>
+        <div><div class="count" id="sendCount">0</div><div class="meta">phím đã gửi</div></div>
+      </div>
+    </section>
+    <section class="card span-6">
+      <h2>Phím nhận gần nhất</h2>
+      <div class="last">
+        <div class="keycap" id="lastRecvKey">–</div>
+        <div><div class="count" id="recvCount">0</div><div class="meta" id="lastRecvFrom">phím đã nhận</div></div>
+      </div>
+    </section>
+
+    <section class="card span-4">
+      <h2>Chế độ</h2>
+      <div class="switch">
+        <div>Gửi phím đi<small>Phím gõ trên máy này gửi sang máy khác</small></div>
+        <label class="tog"><input type="checkbox" id="relayTog"><span></span></label>
+      </div>
+      <div class="switch">
+        <div>Tự bấm phím nhận về<small>Máy khác gõ thì máy này bấm theo</small></div>
+        <label class="tog"><input type="checkbox" id="injectTog"><span></span></label>
+      </div>
+    </section>
+
+    <section class="card span-4">
+      <h2>Máy trong kênh <span id="chName"></span></h2>
+      <div class="chips" id="roster"><span class="muted">—</span></div>
+    </section>
+
+    <section class="card span-4">
+      <h2>Bàn phím đang nghe <span class="muted" id="backend"></span></h2>
+      <ul class="plain" id="kbds"><li class="muted">—</li></ul>
+    </section>
+
+    <section class="card span-8">
+      <div class="logbar">
+        <h2 style="margin:0">Nhật ký</h2><span class="sp"></span>
+        <label class="muted" style="font-size:13px"><input type="checkbox" id="onlyKeys"> chỉ phím</label>
+        <button id="clearLog">Xoá</button>
+      </div>
+      <ul id="log"></ul>
+    </section>
+
+    <section class="card span-4">
+      <h2>Cấu hình</h2>
+      <form class="cfg" id="cfgForm">
+        <label class="wide">Server<input type="text" name="server" placeholder="ws://192.168.1.10:7000/ws"></label>
+        <label>Kênh<input type="text" name="channel"></label>
+        <label>Tên máy<input type="text" name="name"></label>
+        <label>Phím TẮT<input type="text" name="pause_key" placeholder="insert"></label>
+        <label>Phím BẬT<input type="text" name="resume_key" placeholder="delete"></label>
+        <div class="row-end"><span id="cfgMsg" class="muted"></span><button class="primary" type="submit">Lưu &amp; kết nối lại</button></div>
+      </form>
+    </section>
+  </div>
+</div>
+<div class="offline" id="offline">Agent không phản hồi — agent đã tắt?</div>
+
+<script>
+'use strict';
+const TOKEN = '__AGENT_TOKEN__';
+const $ = (id) => document.getElementById(id);
+let state = null, lastSeq = 0, clearedSeq = 0, formDirty = false;
+
+const KEY_NAMES = { space: 'Space', enter: 'Enter', tab: 'Tab', backspace: '⌫', esc: 'Esc', delete: 'Del',
+  insert: 'Ins', up: '↑', down: '↓', left: '←', right: '→', page_up: 'PgUp', page_down: 'PgDn',
+  home: 'Home', end: 'End', caps_lock: 'Caps' };
+const keyText = (k) => k ? (KEY_NAMES[k] || (k.length > 1 ? k.toUpperCase() : k)) : '–';
+
+async function act(action, extra) {
+  const r = await fetch('/api/action', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Agent-Token': TOKEN },
+    body: JSON.stringify(Object.assign({ action }, extra || {}))
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.status);
+  render(j.state);
+  return j;
+}
+
+function flash(el) { el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 120); }
+
+function render(s) {
+  const prev = state; state = s;
+  $('hName').textContent = s.name;
+  $('connDot').className = 'dot' + (s.connected ? ' on' : '');
+  $('connText').textContent = (s.connected ? 'Đã kết nối ' : 'Mất kết nối — đang thử lại ') + s.server;
+
+  const card = $('syncCard');
+  const on = !s.paused;
+  card.className = 'card span-12 sync ' + (on ? 'on' : 'off');
+  $('syncBig').textContent = on ? 'ĐANG ĐỒNG BỘ' : 'TẠM DỪNG';
+  const pk = s.pause_key ? '<kbd>' + keyText(s.pause_key) + '</kbd>' : '';
+  const rk = s.resume_key ? '<kbd>' + keyText(s.resume_key) + '</kbd>' : '';
+  $('syncHint').innerHTML = on
+    ? 'Phím gõ trên máy này được gửi đi và nhận về.' + (pk ? ' Bấm ' + pk + ' để tắt.' : '')
+    : 'Không gửi, không nhận phím trên máy này.' + (rk ? ' Bấm ' + rk + ' để bật lại.' : '');
+  $('syncBtn').textContent = on ? 'Tắt đồng bộ' : 'Bật đồng bộ';
+
+  $('relayTog').checked = s.relay_keys;
+  $('injectTog').checked = s.auto_inject;
+
+  $('chName').textContent = '“' + s.channel + '”';
+  const roster = $('roster'); roster.innerHTML = '';
+  if (!s.connected) roster.innerHTML = '<span class="muted">Chưa kết nối</span>';
+  (s.roster || []).forEach((n) => {
+    const c = document.createElement('span');
+    c.className = 'chip' + (n === s.name ? ' me' : ''); c.textContent = n + (n === s.name ? ' (máy này)' : '');
+    roster.appendChild(c);
+  });
+
+  $('backend').textContent = '· ' + s.backend;
+  const kb = $('kbds'); kb.innerHTML = '';
+  (s.keyboards.length ? s.keyboards : ['(chưa thấy bàn phím nào)']).forEach((n) => {
+    const li = document.createElement('li'); li.textContent = n; li.title = n; kb.appendChild(li);
+  });
+
+  const w = $('warnBox');
+  if (s.warnings.length) {
+    w.hidden = false;
+    w.innerHTML = '<b>Thiếu quyền / cấu hình</b><ul>' + s.warnings.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>';
+  } else w.hidden = true;
+
+  $('sendCount').textContent = s.sent; $('recvCount').textContent = s.received;
+  if (s.last_sent && (!prev || prev.sent !== s.sent)) { $('lastSendKey').textContent = keyText(s.last_sent); flash($('lastSendKey')); }
+  if (s.last_recv && (!prev || prev.received !== s.received)) {
+    $('lastRecvKey').textContent = keyText(s.last_recv.key); flash($('lastRecvKey'));
+    $('lastRecvFrom').textContent = 'phím đã nhận · từ ' + s.last_recv.from;
+  }
+
+  renderLog(s.log);
+  if (!formDirty) fillForm(s);
+}
+
+function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+function renderLog(entries) {
+  const ul = $('log'); const onlyKeys = $('onlyKeys').checked;
+  const fresh = entries.filter((e) => e.seq > lastSeq);
+  if (!fresh.length) return;
+  lastSeq = fresh[fresh.length - 1].seq;
+  fresh.forEach((e) => {
+    if (e.seq <= clearedSeq) return;
+    const li = document.createElement('li'); li.className = e.kind; li.dataset.kind = e.kind;
+    if (onlyKeys && e.kind !== 'send' && e.kind !== 'recv') li.hidden = true;
+    const icon = { send: '↑', recv: '↓', warn: '!', state: '●', info: '·' }[e.kind] || '·';
+    li.innerHTML = '<time>' + new Date(e.t * 1000).toLocaleTimeString('vi-VN') + '</time><span class="k">' + icon +
+      '</span><span class="' + (e.kind === 'warn' ? 'warn-l' : '') + '"></span>';
+    li.lastChild.textContent = e.text;
+    ul.prepend(li);
+  });
+  while (ul.children.length > 300) ul.removeChild(ul.lastChild);
+}
+
+function fillForm(s) {
+  const f = $('cfgForm');
+  ['server', 'channel', 'name', 'pause_key', 'resume_key'].forEach((k) => { f.elements[k].value = s[k] || ''; });
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/api/state', { cache: 'no-store' });
+    render(await r.json());
+    $('offline').style.display = 'none';
+  } catch (e) {
+    $('offline').style.display = 'block';
+    $('connDot').className = 'dot';
+  }
+  setTimeout(poll, 600);
+}
+
+$('syncBtn').addEventListener('click', () => act('set_paused', { paused: !state.paused }).catch(alert));
+$('relayTog').addEventListener('change', (e) => act('set_option', { key: 'relay_keys', value: e.target.checked }).catch(alert));
+$('injectTog').addEventListener('change', (e) => act('set_option', { key: 'auto_inject', value: e.target.checked }).catch(alert));
+$('clearLog').addEventListener('click', () => { clearedSeq = lastSeq; $('log').innerHTML = ''; });
+$('onlyKeys').addEventListener('change', (e) => {
+  [...$('log').children].forEach((li) => { li.hidden = e.target.checked && li.dataset.kind !== 'send' && li.dataset.kind !== 'recv'; });
+});
+$('cfgForm').addEventListener('input', () => { formDirty = true; $('cfgMsg').textContent = 'Chưa lưu'; });
+$('cfgForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const f = ev.target, data = {};
+  ['server', 'channel', 'name', 'pause_key', 'resume_key'].forEach((k) => { data[k] = f.elements[k].value.trim(); });
+  try {
+    await act('save_config', { config: data });
+    formDirty = false; $('cfgMsg').textContent = 'Đã lưu, đang kết nối lại…';
+  } catch (e) { $('cfgMsg').textContent = 'Lỗi: ' + e.message; }
+});
+$('quitBtn').addEventListener('click', async () => {
+  if (!confirm('Tắt hẳn agent trên máy này? Muốn chạy lại phải mở lại ứng dụng.')) return;
+  try { await act('quit'); } catch (e) { /* agent tắt ngay nên có thể không kịp trả lời */ }
+  $('offline').textContent = 'Đã tắt agent. Có thể đóng tab này.';
+});
+poll();
+</script>
+</body>
+</html>

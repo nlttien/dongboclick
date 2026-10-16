@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Click Đồng Bộ Agent
+Comment=Đồng bộ gõ phím giữa nhiều máy (mở giao diện web)
+Exec=clickdongbo-agent
+Icon=clickdongbo-agent
+Categories=Utility;
+Terminal=false

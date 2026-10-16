@@ -27,15 +27,19 @@ Nếu bạn muốn **ấn phím `R` trên máy 1 → máy 2 tự bấm `R` ở c
 - [`agent/agent.py`](agent/agent.py): nghe phím toàn cục (`pynput`) + mô phỏng phím trên máy nhận + chống lặp vòng.
 - [`agent/config.json`](agent/config.json): cấu hình server/kênh/tên/bộ lọc phím.
 - [`agent/README.md`](agent/README.md): hướng dẫn đầy đủ.
+- **Giao diện web** của agent: tự mở `http://127.0.0.1:7071/` — trạng thái, máy online, phím gửi/nhận, sửa cấu hình.
+- **Linux: AppImage** 1 file (`agent/build-appimage.sh`, hoặc tải artifact `clickdongbo-agent-appimage` từ GitHub Actions).
+- **Tắt / bật đồng bộ**: bấm **Ins** để tạm dừng gửi/nhận phím trên máy đó, **Del** để bật lại (đổi qua `pause_key` / `resume_key`).
+- Chạy được trên **Windows, macOS và Linux** (cả X11 lẫn Wayland — Linux cần chạy `sudo ./setup-linux.sh` 1 lần, xem agent/README mục 6).
 
 Nhanh:
 ```bash
 cd agent
 pip install -r requirements.txt
 # máy 1:
-python agent.py May-A room1 ws://<IP_UBUNTU>:3000/ws
+python agent.py May-A room1 ws://<IP_UBUNTU>:7000/ws
 # máy 2:
-python agent.py May-B room1 ws://<IP_UBUNTU>:3000/ws
+python agent.py May-B room1 ws://<IP_UBUNTU>:7000/ws
 ```
 → bấm phím trên máy 1, máy 2 bấm theo (toàn cục).
 
@@ -76,7 +80,7 @@ Màn hình sẽ hiện:
 ```bash
 sudo ufw allow 7000/tcp
 ```
-> Nếu dùng VPS cloud (AWS/GCP/DigitalOcean…), nhớ mở cổng **3000** ở Security Group/Firewall của nhà cung cấp.
+> Nếu dùng VPS cloud (AWS/GCP/DigitalOcean…), nhớ mở cổng **7000** ở Security Group/Firewall của nhà cung cấp.
 
 ---
 
@@ -109,7 +113,7 @@ sudo journalctl -u clickdongbo -f
 2. Trên mỗi máy điền:
    - **Tên máy của bạn** (vd: `Máy A`, `Máy B`)
    - **Kênh (channel)** — *phải giống nhau* trên cả 2 máy (vd: `room1`)
-   - **Địa chỉ server** — `ws://<IP_UBUNTU>:3000/ws`
+   - **Địa chỉ server** — `ws://<IP_UBUNTU>:7000/ws`
 3. Bấm **Kết nối** trên cả 2 máy. Khi trạng thái chuyển sang **Đã kết nối**, ấn nút bất kỳ → máy kia sẽ **nhấp nháy + hiện log**.
 4. Có thể **thêm nút tuỳ chỉnh** (Tên nút mới → + Thêm nút). Cấu hình được lưu lại trong trình duyệt.
 
@@ -148,7 +152,7 @@ Nhớ mở cổng tương ứng ở tường lửa.
 |-------------|--------------------------|
 | "Đang kết nối…" mãi không xong | Sai địa chỉ server / cổng chưa mở / `ws://` vs `wss://` |
 | Đã kết nối nhưng ấn nút máy kia không nhận | 2 máy nhập **khác kênh (channel)** |
-| Không truy cập được trang `http://<ip>:3000` | Tường lửa/VPC chưa mở cổng 3000 |
+| Không truy cập được trang `http://<ip>:7000` | Tường lửa/VPC chưa mở cổng 7000 |
 | Muốn chạy cùng HTTPS | Đặt nginx/caddy ngược proxy + dùng `wss://` |
 
 ---
@@ -167,6 +171,12 @@ clickdongbo/
 │   └── nginx.conf             # ví dụ reverse proxy (tuỳ chọn)
 ├── agent/
 │   ├── agent.py              # agent đồng bộ gõ phím toàn cục (không cần web)
+│   ├── linux_input.py        # backend Linux (evdev: X11 + Wayland)
+│   ├── setup-linux.sh        # cấp quyền /dev/input + /dev/uinput (chạy 1 lần)
+│   ├── clickdongbo-agent.spec # cấu hình PyInstaller (build.bat / build.sh / CI)
+│   ├── ui_server.py + ui.html # giao diện web cục bộ của agent
+│   ├── build-appimage.sh      # đóng gói AppImage (appimage/: AppRun, .desktop, icon)
+│   ├── test_linux_e2e.py      # test e2e agent Linux (cần quyền input + server test)
 │   ├── config.json           # cấu hình agent
 │   ├── requirements.txt      # pynput, websocket-client
 │   ├── test_agent_ws.py      # test protocol agent

@@ -1,7 +1,36 @@
 'use strict';
 // Kiểm thử end-to-end: giả lập 2 máy kết nối, đồng bộ ấn nút + chia sẻ danh sách nút.
+// Mặc định tự bật server.js ở cổng ngẫu nhiên; đặt TEST_URL=ws://host:port/ws để test server thật.
+const path = require('path');
+const { spawn } = require('child_process');
 const WebSocket = require('ws');
-const URL = 'ws://192.168.2.113:3000/ws';
+let URL = process.env.TEST_URL;
+let serverProc = null;
+
+function startServer() {
+  return new Promise((resolve, reject) => {
+    serverProc = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
+      env: { ...process.env, PORT: '0' }
+    });
+    serverProc.stdout.on('data', (d) => {
+      const m = String(d).match(/Đang lắng nghe cổng: (\d+)/);
+      if (m) resolve('ws://127.0.0.1:' + m[1] + '/ws');
+    });
+    serverProc.on('exit', (code) => reject(new Error('server.js thoát sớm, code ' + code)));
+  });
+}
+
+// URL lỗi mã hoá ("/%") từng làm sập server -> server phải trả 400 và vẫn sống
+function getStatus(wsUrl, reqPath) {
+  const http = require('http');
+  const u = new globalThis.URL(wsUrl.replace(/^ws/, 'http'));
+  return new Promise((resolve) => {
+    http.get({ host: u.hostname, port: u.port, path: reqPath }, (res) => {
+      res.resume();
+      resolve(res.statusCode);
+    }).on('error', () => resolve(0));
+  });
+}
 
 function makeClient(name, channel) {
   const ws = new WebSocket(URL);
@@ -15,8 +44,16 @@ function makeClient(name, channel) {
   });
 }
 
+// Không bao giờ treo: quá 15s là coi như thất bại
+setTimeout(() => {
+  console.log('❌ Quá thời gian (server không phản hồi / đã sập)');
+  if (serverProc) serverProc.kill();
+  process.exit(1);
+}, 15000).unref();
+
 (async () => {
   let pass = true;
+  if (!URL) URL = await startServer();
   console.log('--- Test đồng bộ giữa Máy A & Máy B ---');
   const a = await makeClient('Máy A', 'room-test');
   const b = await makeClient('Máy B', 'room-test');
@@ -68,7 +105,19 @@ function makeClient(name, channel) {
     pass = false;
   }
 
+  // ---- (3) URL lỗi mã hoá & path traversal không làm sập server ----
+  const bad = await getStatus(URL, '/%');
+  const sibling = await getStatus(URL, '/../public-x/a.txt');
+  const ok = await getStatus(URL, '/');
+  if (bad === 400 && sibling !== 200 && ok === 200) {
+    console.log('✅ (3) Request xấu bị chặn, server vẫn sống: THÀNH CÔNG');
+  } else {
+    console.log('❌ (3) Request xấu: THẤT BẠI', { bad, sibling, ok });
+    pass = false;
+  }
+
   console.log(pass ? '\n🎉 TẤT CẢ TEST ĐẠT.' : '\n⚠️ CÓ TEST THẤT BẠI.');
   a.close(); b.close();
+  if (serverProc) serverProc.kill();
   process.exit(pass ? 0 : 1);
 })();

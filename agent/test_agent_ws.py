@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Kiểm tra protocol của agent qua server (không động vào bàn phím thật)."""
-import json, time, threading
+import json, os, time, threading
 import websocket
 
-URL = "ws://192.168.2.113:3000/ws"
+# Chạy server trước (npm start), hoặc đặt TEST_URL=ws://host:port/ws
+URL = os.environ.get("TEST_URL", "ws://127.0.0.1:7000/ws")
 results = {}
 
 def make(name, channel, on_msg):

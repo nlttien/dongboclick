@@ -1,0 +1,22 @@
+#!/bin/sh
+# AppRun của Click Đồng Bộ Agent.
+#   ./ClickDongBo-x86_64.AppImage            -> chạy agent (mở giao diện web)
+#   ./ClickDongBo-x86_64.AppImage --setup    -> cấp quyền /dev/input + /dev/uinput (1 lần, cần mật khẩu admin)
+HERE="$(dirname "$(readlink -f "$0")")"
+
+if [ "$1" = "--setup" ]; then
+  # Chép script ra ngoài trước: root thường không đọc được ổ FUSE mà AppImage gắn cho user
+  TMP="$(mktemp /tmp/clickdongbo-setup.XXXXXX)"
+  cp "$HERE/usr/share/clickdongbo/setup-linux.sh" "$TMP" && chmod 755 "$TMP"
+  ME="$(id -un)"
+  if [ -t 0 ] || ! command -v pkexec >/dev/null 2>&1; then
+    sudo sh -c "exec bash '$TMP' '$ME'"
+  else
+    pkexec bash "$TMP" "$ME"   # mở từ menu/file manager (không có terminal) -> hộp thoại mật khẩu
+  fi
+  rc=$?
+  rm -f "$TMP"
+  exit $rc
+fi
+
+exec "$HERE/usr/lib/clickdongbo-agent/clickdongbo-agent" "$@"

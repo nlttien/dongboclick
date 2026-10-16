@@ -1,10 +1,16 @@
 {
-  "server": "ws://192.168.2.113:3000/ws",
+  "server": "ws://192.168.2.113:7000/ws",
   "channel": "room1",
   "name": "May-A",
+  "backend": "auto",
   "relay_keys": true,
   "auto_inject": true,
   "echo_suppress_ms": 90,
   "only_keys": [],
-  "ignore_keys": []
+  "ignore_keys": [],
+  "pause_key": "insert",
+  "resume_key": "delete",
+  "start_paused": false,
+  "ui_port": 7071,
+  "open_ui": true
 }

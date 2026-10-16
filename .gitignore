@@ -8,5 +8,7 @@ __pycache__/
 # PyInstaller build artifacts
 agent/build/
 agent/dist/
-agent/*.spec
 agent/smoke.txt
+
+# File build/phát hành — tải exe từ artifact của GitHub Actions, không commit vào repo
+*.zip

@@ -36,12 +36,19 @@ const MIME = {
 // ---- HTTP server phục vụ file tĩnh (giao diện client) ------------------
 const server = http.createServer((req, res) => {
   // Vệ trì đường dẫn, mặc định về index.html
-  let urlPath = decodeURIComponent(req.url.split('?')[0]);
+  // URL lỗi mã hoá (vd "/%") làm decodeURIComponent ném lỗi -> phải bắt, kẻo sập cả server
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent(req.url.split('?')[0]);
+  } catch (e) {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('400 Bad Request');
+  }
   if (urlPath === '/') urlPath = '/index.html';
 
-  // Chống path traversal
+  // Chống path traversal (so với PUBLIC_DIR + sep để chặn cả thư mục anh em "public-x/")
   const filePath = path.join(PUBLIC_DIR, urlPath);
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+  if (!filePath.startsWith(PUBLIC_DIR + path.sep)) {
     res.writeHead(403);
     return res.end('403 Forbidden');
   }
@@ -58,7 +65,8 @@ const server = http.createServer((req, res) => {
 });
 
 // ---- WebSocket server (relay dữ liệu đồng bộ) ---------------------------
-const wss = new WebSocketServer({ server, path: '/ws' });
+// maxPayload: message hợp lệ chỉ vài trăm byte; mặc định của ws là 100 MB
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
 
 /**
  * Lưu trữ client theo kênh (channel) để ghép đôi các máy cùng nhóm.
@@ -69,6 +77,15 @@ const channels = new Map();
 function getClients(channel) {
   if (!channels.has(channel)) channels.set(channel, new Set());
   return channels.get(channel);
+}
+
+/** Xoá ws khỏi kênh; kênh trống thì xoá luôn để Map không phình mãi */
+function leaveChannel(ws, channel) {
+  const members = channels.get(channel);
+  if (!members) return;
+  members.delete(ws);
+  if (members.size === 0) channels.delete(channel);
+  else sendRoster(channel);
 }
 
 /** Gửi JSON an toàn tới một ws */
@@ -118,9 +135,7 @@ wss.on('connection', (ws, req) => {
       // Client tham gia kênh + khai báo tên máy
       case 'join': {
         // rời kênh cũ
-        const old = getClients(ws.meta.channel);
-        old.delete(ws);
-        sendRoster(ws.meta.channel);
+        leaveChannel(ws, ws.meta.channel);
 
         const newChannel = (msg.channel && String(msg.channel).trim()) || 'default';
         const name = (msg.name && String(msg.name).trim()) || 'Máy không tên';
@@ -174,10 +189,8 @@ wss.on('connection', (ws, req) => {
 
   // ---- Ngắt kết nối ----
   ws.on('close', () => {
-    const ch = getClients(ws.meta.channel);
-    ch.delete(ws);
+    leaveChannel(ws, ws.meta.channel);
     console.log(`[-] "${ws.meta.name}" rời kênh "${ws.meta.channel}"`);
-    sendRoster(ws.meta.channel);
   });
 
   ws.on('error', (err) => {
@@ -187,12 +200,13 @@ wss.on('connection', (ws, req) => {
 
 // ---- Khởi động ----------------------------------------------------------
 server.listen(PORT, () => {
+  const port = server.address().port; // PORT=0 -> cổng ngẫu nhiên (dùng trong test)
   console.log('============================================================');
   console.log('  CLICK-DONGBO — Máy chủ đồng bộ đã chạy');
   console.log('============================================================');
-  console.log(`  Giao diện (client):  http://<IP_UBUNTU>:${PORT}/`);
-  console.log(`  WebSocket (ws):      ws://<IP_UBUNTU>:${PORT}/ws`);
-  console.log(`  Đang lắng nghe cổng: ${PORT}`);
+  console.log(`  Giao diện (client):  http://<IP_UBUNTU>:${port}/`);
+  console.log(`  WebSocket (ws):      ws://<IP_UBUNTU>:${port}/ws`);
+  console.log(`  Đang lắng nghe cổng: ${port}`);
   console.log('------------------------------------------------------------');
   console.log('  Mở trang web trên CẢ 2 máy và dùng chung 1 kênh (channel).');
   console.log('============================================================');
