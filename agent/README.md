@@ -29,6 +29,7 @@ Sửa [`config.json`](config.json):
   "server": "ws://<IP_SERVER_UBUNTU>:7000/ws",
   "channel": "room1",
   "name": "May-A",
+  "role": "both",
   "backend": "auto",
   "relay_keys": true,
   "auto_inject": true,
@@ -57,6 +58,21 @@ Sửa [`config.json`](config.json):
 - `start_paused`: `true` = mở agent lên ở trạng thái tạm dừng (bấm Del để bật).
 - `ui_port`: cổng giao diện web `http://127.0.0.1:7071/` (`0` = tắt giao diện).
 - `open_ui`: `true` = tự mở giao diện trong trình duyệt khi chạy agent.
+
+### 👑 Leader / follower (1 máy điều khiển các máy còn lại)
+`"role"` trong config.json, hoặc 3 nút **Vai trò** trên giao diện web:
+
+| Vai trò | Gửi phím đi | Bấm phím nhận về |
+|---|---|---|
+| `both` (mặc định) — 2 chiều | ✅ | ✅ từ mọi máy |
+| `leader` — **chỉ điều khiển** | ✅ (kèm dấu leader) | ❌ máy khác không điều khiển được leader |
+| `follower` — **chỉ làm theo** | ❌ | ✅ **chỉ phím của leader** |
+
+- Bấm **👑 Nhận làm leader** trên 1 máy → mọi máy khác trong kênh **tự chuyển sang follower**
+  (máy vào kênh sau cũng tự theo). Leader chọn lại "2 chiều" → các máy đó tự trở về vai trò cũ.
+- Phím Ins/Del (tạm dừng) vẫn có tác dụng riêng trên từng máy.
+- Server mới (≥ bản này) hiện 👑 cạnh tên leader trong "Máy trong kênh"; server cũ vẫn chạy được leader/follower,
+  chỉ không hiện vai trò của máy khác.
 
 ### ⏸ Tắt / bật đồng bộ (Ins / Del)
 - Bấm **Ins** trên máy nào → **máy đó** tạm dừng: không gửi phím đi, không tự bấm phím nhận về

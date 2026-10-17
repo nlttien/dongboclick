@@ -2,6 +2,7 @@
   "server": "ws://192.168.2.113:7000/ws",
   "channel": "room1",
   "name": "May-A",
+  "role": "both",
   "backend": "auto",
   "relay_keys": true,
   "auto_inject": true,

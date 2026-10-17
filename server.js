@@ -111,7 +111,10 @@ function sendRoster(channel) {
   const roster = [...members]
     .map((m) => m.meta && m.meta.name)
     .filter(Boolean);
-  const msg = { type: 'roster', clients: roster, count: roster.length };
+  // roles: tên máy -> vai trò agent (both | leader | follower); client cũ bỏ qua trường này
+  const roles = {};
+  for (const m of members) if (m.meta && m.meta.name) roles[m.meta.name] = m.meta.role || 'both';
+  const msg = { type: 'roster', clients: roster, count: roster.length, roles };
   for (const m of members) safeSend(m, msg);
 }
 
@@ -142,6 +145,7 @@ wss.on('connection', (ws, req) => {
 
         ws.meta.channel = newChannel;
         ws.meta.name = name;
+        ws.meta.role = ['both', 'leader', 'follower'].includes(msg.role) ? msg.role : 'both';
         getClients(newChannel).add(ws);
 
         console.log(`    → "${name}" gia nhập kênh "${newChannel}"`);

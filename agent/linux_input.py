@@ -92,9 +92,16 @@ def translate(code, shift=False, caps=False):
 
 
 # ---- NGHE PHÍM -------------------------------------------------------------
+EXTRA_KEYBOARDS = set()   # tên thiết bị nghe thêm dù không đủ phím A-Z (config "extra_keyboards"; test dùng)
+
+
 def is_keyboard(dev):
+    if dev.name == VIRTUAL_NAME:
+        return False
+    if dev.name in EXTRA_KEYBOARDS:
+        return True
     keys = dev.capabilities().get(e.EV_KEY, [])
-    return dev.name != VIRTUAL_NAME and e.KEY_A in keys and e.KEY_Z in keys
+    return e.KEY_A in keys and e.KEY_Z in keys
 
 
 def find_keyboards():

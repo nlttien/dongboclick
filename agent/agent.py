@@ -61,6 +61,7 @@ DEFAULT_CONFIG = {
     "channel": "room1",
     "name": "May-A",
     "backend": "auto",         # auto | evdev (Linux, X11 + Wayland) | pynput
+    "role": "both",            # both = 2 chiều | leader = chỉ ĐIỀU KHIỂN máy khác | follower = chỉ LÀM THEO leader
     "relay_keys": True,        # có nghe & gửi phím đi không
     "auto_inject": True,       # máy nhận có tự bấm phím không
     "echo_suppress_ms": 90,    # khoảng thời gian chống lặp vòng (ms)
@@ -122,6 +123,7 @@ if BACKEND == "evdev":
     except ImportError as e:
         print("[!] Thiếu thư viện evdev (%s). Cài:  pip install -r requirements.txt" % e)
         sys.exit(1)
+    linux_input.EXTRA_KEYBOARDS.update(str(n) for n in (cfg.get("extra_keyboards") or []))
 else:
     try:
         from pynput import keyboard
@@ -170,6 +172,82 @@ def pause_key():
 
 def resume_key():
     return str(cfg.get("resume_key") or "").strip().lower()
+
+
+# ------------------------------------------------------------------
+#  VAI TRÒ: leader chỉ điều khiển, follower chỉ làm theo leader
+# ------------------------------------------------------------------
+ROLES = ("both", "leader", "follower")
+member_roles = {}        # tên máy -> vai trò (server mới gửi trong roster)
+leader_from = {"name": None}  # tên leader biết được qua tin "nhận leader"
+
+
+def role():
+    r = str(cfg.get("role") or "both").lower()
+    return r if r in ROLES else "both"
+
+
+def send_json(obj):
+    if ws_app is None or not connected:
+        return False
+    try:
+        ws_app.send(json.dumps(obj))
+        return True
+    except Exception:
+        return False
+
+
+def send_join():
+    send_json({"type": "join", "name": cfg["name"], "channel": cfg["channel"], "role": role()})
+
+
+def announce(op):
+    """op = claim (máy này nhận làm leader) | release (trả quyền leader)."""
+    send_json({"type": "sync", "key": "role", "value": json.dumps({"op": op}), "ts": int(time.time() * 1000)})
+
+
+def set_role(new, why="", announce_change=True):
+    """Đổi vai trò máy này; leader mới -> báo các máy khác chuyển sang follower."""
+    if new not in ROLES:
+        raise ValueError("vai trò không hợp lệ: %s" % new)
+    old = role()
+    if new == old:
+        return
+    cfg["role"] = new
+    if new == "leader":
+        cfg.pop("role_before_claim", None)
+        leader_from["name"] = cfg["name"]
+    elif old == "leader":
+        leader_from["name"] = None
+    if new in ("both", "follower") and cfg.get("auto_inject", True):
+        ensure_injector()
+    save_config(cfg)
+    label = {"both": "2 CHIỀU", "leader": "👑 LEADER (chỉ điều khiển)", "follower": "FOLLOWER (chỉ làm theo leader)"}[new]
+    log("state", "[i] Vai trò: %s%s" % (label, (" — " + why) if why else ""))
+    send_join()                          # cập nhật vai trò trong danh sách máy của server
+    if announce_change:
+        if new == "leader":
+            announce("claim")
+        elif old == "leader":
+            announce("release")
+
+
+def on_role_msg(src, op):
+    """Máy khác nhận / trả quyền leader."""
+    if src == cfg["name"]:
+        return
+    if op == "claim":
+        leader_from["name"] = src
+        if role() != "follower":
+            cfg["role_before_claim"] = role()
+            set_role("follower", "%s nhận làm leader" % src, announce_change=False)
+    elif op == "release":
+        if leader_from["name"] == src:
+            leader_from["name"] = None
+        back = cfg.pop("role_before_claim", None)
+        if role() == "follower" and back:
+            set_role(back if back in ("both", "follower") else "both", "%s trả quyền leader" % src,
+                     announce_change=False)
 
 # Các phím bổ trợ — KHÔNG relay riêng để tránh nhân đôi shift/ctrl khi gõ chữ
 MODIFIERS = {
@@ -289,7 +367,7 @@ def send_event(obj):
         payload = {
             "type": "sync",
             "key": "keystroke",
-            "value": json.dumps({"s": obj}),
+            "value": json.dumps({"s": obj, "role": role()}),
             "ts": int(time.time() * 1000)
         }
         ws_app.send(json.dumps(payload))
@@ -371,6 +449,8 @@ def handle_local(obj):
         return
     if paused.is_set() or not cfg.get("relay_keys", True):
         return
+    if role() == "follower":
+        return  # follower chỉ làm theo leader, không điều khiển máy khác
     if not should_relay(obj):
         return
     send_event(obj)
@@ -416,14 +496,9 @@ def on_open(ws):
     global connected
     connected = True
     log("info", "[+] Đã kết nối server: %s" % cfg["server"])
-    try:
-        ws.send(json.dumps({
-            "type": "join",
-            "name": cfg["name"],
-            "channel": cfg["channel"]
-        }))
-    except Exception as e:
-        log("warn", "[join err] %s" % e)
+    send_join()
+    if role() == "leader":
+        announce("claim")                # máy vào sau cũng biết ai là leader
     print("[i] Đang nghe phím toàn cục. Bấm phím bất kỳ để đồng bộ.")
     pk, rk = pause_key(), resume_key()
     if pk == rk and pk:
@@ -445,9 +520,23 @@ def on_message(ws, message):
         return
 
     if msg.get("type") == "roster":
+        before = len(roster)
         roster[:] = [str(n) for n in (msg.get("clients") or [])]
+        member_roles.clear()
+        member_roles.update({str(k): str(v) for k, v in (msg.get("roles") or {}).items()})
+        others = [n for n, r in member_roles.items() if r == "leader" and n != cfg["name"]]
+        if others and role() == "both":          # server mới: thấy leader sẵn trong kênh -> làm theo
+            on_role_msg(others[0], "claim")
+        if role() == "leader" and len(roster) > before:
+            announce("claim")                    # có máy mới vào (server cũ không báo vai trò)
         return
     if msg.get("type") != "sync":
+        return
+    if msg.get("key") == "role":
+        try:
+            on_role_msg(msg.get("from", "?"), json.loads(msg.get("value") or "{}").get("op"))
+        except Exception:
+            pass
         return
     if msg.get("key") != "keystroke":
         return
@@ -463,6 +552,10 @@ def on_message(ws, message):
     src = msg.get("from", "?")
     if paused.is_set():
         return  # tạm dừng: bỏ qua hoàn toàn (không bấm, không đếm)
+    if role() == "leader":
+        return  # leader chỉ điều khiển, không bị máy khác điều khiển
+    if role() == "follower" and data.get("role") != "leader":
+        return  # follower chỉ làm theo LEADER
     stats["received"] += 1
     stats["last_recv"] = {"key": key_label(obj), "from": src}
     active = cfg.get("auto_inject", True) and kbd is not None
@@ -481,6 +574,7 @@ def on_close(ws, *args):
     was = connected
     connected = False
     roster[:] = []
+    member_roles.clear()
     if stop.is_set() or reconnecting.is_set():
         return  # đang thoát do Ctrl+C, hoặc chủ động kết nối lại sau khi đổi cấu hình
     if was:
@@ -510,6 +604,9 @@ def get_state():
         "name": cfg["name"], "channel": cfg["channel"], "server": cfg["server"],
         "pause_key": pause_key(), "resume_key": resume_key(),
         "backend": BACKEND, "connected": connected, "paused": paused.is_set(),
+        "role": role(),
+        "leader": leader_from["name"] or next((n for n, r in member_roles.items() if r == "leader"), None),
+        "roles": dict(member_roles),
         "relay_keys": bool(cfg.get("relay_keys", True)),
         "auto_inject": bool(cfg.get("auto_inject", True)) and kbd is not None,
         "roster": list(roster), "keyboards": kbds, "warnings": list(warnings),
@@ -538,6 +635,8 @@ def do_action(action, data):
         cfg[key] = value
         save_config(cfg)
         log("info", "[i] %s = %s" % (key, value))
+    elif action == "set_role":
+        set_role(str(data.get("role") or ""), "đổi từ giao diện")
     elif action == "quit":
         log("info", "[i] Thoát theo yêu cầu từ giao diện.")
         stop.set()
@@ -592,6 +691,7 @@ def main():
     print("  Kênh     : %s" % cfg["channel"])
     print("  Server   : %s" % cfg["server"])
     print("  Backend  : %s" % BACKEND)
+    print("  Vai trò  : %s" % role())
     print("-" * 60)
 
     # Vẫn phải nghe phím nếu có phím tạm dừng, kể cả khi relay_keys = false

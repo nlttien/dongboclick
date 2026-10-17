@@ -52,25 +52,44 @@ cfg_dir = tempfile.mkdtemp(prefix="clickdongbo-e2e-")
 for f in ("agent.py", "linux_input.py", "ui_server.py", "ui.html"):
     subprocess.run(["cp", os.path.join(AGENT_DIR, f), cfg_dir], check=True)
 json.dump({"server": URL, "channel": "ck-linux-test", "name": "Agent-Linux",
-           "backend": "auto", "only_keys": ["f24", "R", "!", "enter", "f23", "f22"], "pause_key": "f23", "resume_key": "f22", "ui_port": 0},
+           "backend": "auto", "only_keys": ["f24", "R", "!", "enter", "f23", "f22"], "pause_key": "f23", "resume_key": "f22", "ui_port": 0, "extra_keyboards": ["ckd-test-kbd"]},
           open(os.path.join(cfg_dir, "config.json"), "w"))
 
-fake = evdev.UInput({e.EV_KEY: [e.KEY_A, e.KEY_Z, e.KEY_F24, e.KEY_F23, e.KEY_F22]}, name="ckd-test-kbd")
+# không có A-Z → agent thật đang chạy trên máy bỏ qua thiết bị này (không gửi gì ra kênh thật); agent test nghe nhờ extra_keyboards
+fake = evdev.UInput({e.EV_KEY: [e.KEY_F24, e.KEY_F23, e.KEY_F22]}, name="ckd-test-kbd")
+before_virt = set()   # bàn phím ảo của agent KHÁC đang chạy (vd AppImage thật) → không grab nhầm
+for _p in evdev.list_devices():
+    try:
+        _d = evdev.InputDevice(_p)
+    except OSError:
+        continue
+    if _d.name == li.VIRTUAL_NAME:
+        before_virt.add(_p)
+    _d.close()
 agent = subprocess.Popen([PY, "-u", os.path.join(cfg_dir, "agent.py")],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 log = []
 threading.Thread(target=lambda: [log.append(l.rstrip()) for l in agent.stdout], daemon=True).start()
 
 # chờ bàn phím ảo của agent xuất hiện rồi GRAB ngay
+def virtual_paths():
+    out = []
+    for p in evdev.list_devices():
+        try:
+            d = evdev.InputDevice(p)
+        except OSError:
+            continue
+        if d.name == li.VIRTUAL_NAME:
+            out.append(p)
+        d.close()
+    return out
+
+
 virt = None
 for _ in range(50):
-    for p in evdev.list_devices():
-        d = evdev.InputDevice(p)
-        if d.name == li.VIRTUAL_NAME:
-            virt = d
-            break
-        d.close()
-    if virt:
+    new = [p for p in virtual_paths() if p not in before_virt]
+    if new:
+        virt = evdev.InputDevice(new[0])
         break
     time.sleep(0.1)
 check("agent tạo bàn phím ảo", virt is not None)

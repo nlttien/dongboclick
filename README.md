@@ -29,6 +29,7 @@ Nếu bạn muốn **ấn phím `R` trên máy 1 → máy 2 tự bấm `R` ở c
 - [`agent/README.md`](agent/README.md): hướng dẫn đầy đủ.
 - **Giao diện web** của agent: tự mở `http://127.0.0.1:7071/` — trạng thái, máy online, phím gửi/nhận, sửa cấu hình.
 - **Linux: AppImage** 1 file (`agent/build-appimage.sh`, hoặc tải artifact `clickdongbo-agent-appimage` từ GitHub Actions).
+- **Leader / follower**: 1 máy nhận làm leader chỉ điều khiển, các máy còn lại chỉ làm theo leader (nút trên giao diện hoặc `"role"`).
 - **Tắt / bật đồng bộ**: bấm **Ins** để tạm dừng gửi/nhận phím trên máy đó, **Del** để bật lại (đổi qua `pause_key` / `resume_key`).
 - Chạy được trên **Windows, macOS và Linux** (cả X11 lẫn Wayland — Linux cần chạy `sudo ./setup-linux.sh` 1 lần, xem agent/README mục 6).
 
@@ -177,6 +178,7 @@ clickdongbo/
 │   ├── ui_server.py + ui.html # giao diện web cục bộ của agent
 │   ├── build-appimage.sh      # đóng gói AppImage (appimage/: AppRun, .desktop, icon)
 │   ├── test_linux_e2e.py      # test e2e agent Linux (cần quyền input + server test)
+│   ├── test_roles_e2e.py      # test e2e vai trò leader / follower
 │   ├── config.json           # cấu hình agent
 │   ├── requirements.txt      # pynput, websocket-client
 │   ├── test_agent_ws.py      # test protocol agent

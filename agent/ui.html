@@ -81,6 +81,14 @@
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { padding: 5px 11px; border-radius: 999px; background: var(--key); border: 1px solid var(--line); font-size: 13px; }
   .chip.me { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .chip.leader { background: var(--off-bg); border-color: var(--off); }
+  .roles { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .roles .info { flex: 1; min-width: 240px; }
+  .roles .now { font-size: 18px; font-weight: 700; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; flex-wrap: wrap; }
+  .seg button { border: 0; border-radius: 0; padding: 10px 16px; font-weight: 600; background: var(--card); }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.sel { background: var(--accent); color: #fff; }
   .muted { color: var(--muted); }
   ul.plain { list-style: none; margin: 0; padding: 0; font-size: 13px; }
   ul.plain li { padding: 3px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -127,6 +135,19 @@
         <div class="hint" id="syncHint"></div>
       </div>
       <button class="big-btn" id="syncBtn">…</button>
+    </section>
+
+    <section class="card span-12 roles">
+      <div class="info">
+        <h2 style="margin-bottom:6px">Vai trò máy này</h2>
+        <div class="now" id="roleNow">—</div>
+        <div class="muted" id="roleHint" style="font-size:14px"></div>
+      </div>
+      <div class="seg" id="roleSeg">
+        <button data-role="both">⇄ 2 chiều</button>
+        <button data-role="leader">👑 Nhận làm leader</button>
+        <button data-role="follower">Chỉ làm theo</button>
+      </div>
     </section>
 
     <section class="card span-12 warn" id="warnBox" hidden></section>
@@ -229,9 +250,21 @@ function render(s) {
   const pk = s.pause_key ? '<kbd>' + keyText(s.pause_key) + '</kbd>' : '';
   const rk = s.resume_key ? '<kbd>' + keyText(s.resume_key) + '</kbd>' : '';
   $('syncHint').innerHTML = on
-    ? 'Phím gõ trên máy này được gửi đi và nhận về.' + (pk ? ' Bấm ' + pk + ' để tắt.' : '')
+    ? ({ leader: 'Phím gõ trên máy này được gửi đi điều khiển các máy khác.',
+         follower: 'Máy này bấm theo phím của leader.' }[s.role] || 'Phím gõ trên máy này được gửi đi và nhận về.')
+      + (pk ? ' Bấm ' + pk + ' để tắt.' : '')
     : 'Không gửi, không nhận phím trên máy này.' + (rk ? ' Bấm ' + rk + ' để bật lại.' : '');
   $('syncBtn').textContent = on ? 'Tắt đồng bộ' : 'Bật đồng bộ';
+
+  const ROLE_TXT = {
+    both: ['⇄ 2 CHIỀU', 'Gõ máy nào thì máy kia gõ theo.'],
+    leader: ['👑 LEADER — chỉ điều khiển', 'Phím gõ ở máy này điều khiển các máy còn lại; máy khác KHÔNG điều khiển được máy này.'],
+    follower: ['CHỈ LÀM THEO', s.leader ? ('Chỉ bấm theo phím của leader “' + s.leader + '”; không gửi phím đi.')
+                                   : 'Chỉ bấm theo phím của leader (chưa có leader trong kênh); không gửi phím đi.'],
+  };
+  $('roleNow').textContent = ROLE_TXT[s.role][0];
+  $('roleHint').textContent = ROLE_TXT[s.role][1];
+  [...$('roleSeg').children].forEach((b) => b.classList.toggle('sel', b.dataset.role === s.role));
 
   $('relayTog').checked = s.relay_keys;
   $('injectTog').checked = s.auto_inject;
@@ -241,7 +274,9 @@ function render(s) {
   if (!s.connected) roster.innerHTML = '<span class="muted">Chưa kết nối</span>';
   (s.roster || []).forEach((n) => {
     const c = document.createElement('span');
-    c.className = 'chip' + (n === s.name ? ' me' : ''); c.textContent = n + (n === s.name ? ' (máy này)' : '');
+    const r = (s.roles || {})[n] || (n === s.name ? s.role : (n === s.leader ? 'leader' : ''));
+    c.className = 'chip' + (n === s.name ? ' me' : '') + (r === 'leader' ? ' leader' : '');
+    c.textContent = (r === 'leader' ? '👑 ' : '') + n + (n === s.name ? ' (máy này)' : '') + (r === 'follower' ? ' · theo' : '');
     roster.appendChild(c);
   });
 
@@ -306,6 +341,10 @@ async function poll() {
 }
 
 $('syncBtn').addEventListener('click', () => act('set_paused', { paused: !state.paused }).catch(alert));
+$('roleSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b || b.dataset.role === state.role) return;
+  act('set_role', { role: b.dataset.role }).catch(alert);
+});
 $('relayTog').addEventListener('change', (e) => act('set_option', { key: 'relay_keys', value: e.target.checked }).catch(alert));
 $('injectTog').addEventListener('change', (e) => act('set_option', { key: 'auto_inject', value: e.target.checked }).catch(alert));
 $('clearLog').addEventListener('click', () => { clearedSeq = lastSeq; $('log').innerHTML = ''; });
